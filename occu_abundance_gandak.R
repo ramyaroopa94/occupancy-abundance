@@ -626,6 +626,17 @@ confint(svocc_gharial2014_m6, model="sta")
 coef(svocc_gharial2014_m6, "det")
 confint(svocc_gharial2014_m6, model="det")
 
+##Exporting results for m1,m2 - 2014
+gharial2014_svocc_m1_estimate <- rbind(svocc_gharial2014_m1_sum[["sta"]],svocc_gharial2014_m1_sum[["det"]])
+rownames(gharial2014_svocc_m1_estimate) <- c("psi-intercept","dist_km (log)","det-intercept")
+write.table(gharial2014_svocc_m1_estimate, file = "gharial2014_svocc_m1_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2014_svocc_m2_estimate <- rbind(svocc_gharial2014_m2_sum[["sta"]],svocc_gharial2014_m2_sum[["det"]])
+rownames(gharial2014_svocc_m2_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","spatial_autocov")
+write.table(gharial2014_svocc_m2_estimate, file = "gharial2014_svocc_m2_estimate.txt", sep = "\t",
+            row.names = T)
+
 #For 2017
 svocc_gharial2017_m1 <- svocc(gharial_2017occ ~ dist_km_log | 1, gharial_svocc_merged)
 svocc_gharial2017_m1_sum <- summary(svocc_gharial2017_m1)
@@ -675,3 +686,31 @@ coef(svocc_gharial2017_m7, "sta")
 confint(svocc_gharial2017_m7, model="sta")
 coef(svocc_gharial2017_m7, "det")
 confint(svocc_gharial2017_m7, model="det")
+
+svocc_gharial2017_m8 <- svocc(gharial_2017occ ~ dist_km_log + spatial_autocov_gharial2017| spatial_autocov_gharial2017, gharial_svocc_merged)
+svocc_gharial2017_m8_sum <- summary(svocc_gharial2017_m8)
+coef(svocc_gharial2017_m8, "sta")
+confint(svocc_gharial2017_m8, model="sta")
+coef(svocc_gharial2017_m8, "det")
+confint(svocc_gharial2017_m8, model="det")
+
+##Exporting results for m1,m2,m3,m4 - 2017
+gharial2017_svocc_m1_estimate <- rbind(svocc_gharial2017_m1_sum[["sta"]],svocc_gharial2017_m1_sum[["det"]])
+rownames(gharial2017_svocc_m1_estimate) <- c("psi-intercept","dist_km (log)","det-intercept")
+write.table(gharial2017_svocc_m1_estimate, file = "gharial2017_svocc_m1_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svocc_m2_estimate <- rbind(svocc_gharial2017_m2_sum[["sta"]],svocc_gharial2017_m2_sum[["det"]])
+rownames(gharial2017_svocc_m2_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","spatial_autocov")
+write.table(gharial2017_svocc_m2_estimate, file = "gharial2017_svocc_m2_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svocc_m3_estimate <- rbind(svocc_gharial2017_m3_sum[["sta"]],svocc_gharial2017_m3_sum[["det"]])
+rownames(gharial2017_svocc_m3_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","fishingactivity")
+write.table(gharial2017_svocc_m3_estimate, file = "gharial2017_svocc_m3_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svocc_m4_estimate <- rbind(svocc_gharial2017_m4_sum[["sta"]],svocc_gharial2017_m4_sum[["det"]])
+rownames(gharial2017_svocc_m4_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","fishingboat")
+write.table(gharial2017_svocc_m4_estimate, file = "gharial2017_svocc_m4_estimate.txt", sep = "\t",
+            row.names = T)
