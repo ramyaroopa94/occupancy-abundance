@@ -14,7 +14,7 @@ summary(covariate)
 gharial<-read.csv("Gharial_Occu_Gandak.csv")
 summary(gharial)
 ############----------------------------------------------------------
-##Occupancy models for grd at 5km scale
+##Occupancy of grds at 5km scale
 ##Exploratory analysis
 grd_cov_merged<-merge(grd,covariate,by=c("reach_ID","replicate_segt"))
 ##distance along river
@@ -197,164 +197,47 @@ rownames(grd_occ_top2_estimate)<-c("psi-intercept","col-intercept",
 write.table(grd_occ_top2_estimate, file = "grd_occ_estimate_top2.txt", sep = "\t",
             row.names = T)
 ############----------------------------------------------------------
-##Occupancy models for gharials at 5km scale
-##Exploratory analysis
-grl_cov_merged<-merge(gharial,covariate,by=c("reach_ID","replicate_segt"))
-##distance along river
-dist_occ_grl1<-ggplot(data=grl_cov_merged,aes(x=dist_km.x,y=gharial_2014occ))+
-  geom_point()+theme_bw()
-dist_occ_grl2<-ggplot(data=grl_cov_merged,aes(x=dist_km.x,y=gharial_2017occ))+
-  geom_point()+theme_bw()
-
-##fishing activity
-fishingactivity_occ_grl1<-grl_cov_merged%>%filter(gharial_2014occ==1)%>%
-  ggplot(aes(x=fishingactivity_2014))+
-  geom_bar()+labs(y="No. of detections",x="Fishing acitivity (2014)")+theme_bw()
-
-fishingactivity_occ_grl2<-grl_cov_merged%>%filter(gharial_2017occ==1)%>%
-  ggplot(aes(x=fishingactivity_2017))+
-  geom_bar()+labs(y="No. of detections",x="Fishing acitivity (2017)")+theme_bw()
-
-##fishing boats
-fishingboats_occ_grl1<-grl_cov_merged%>%filter(gharial_2014occ==1)%>%
-  ggplot(aes(x=fishingboats_2014))+
-  geom_histogram(binwidth = 1,color="red")+
-  labs(y="No. of detections",x="Fishing boats (2014)")+
-  theme_bw()
-
-fishingboats_occ_grl2<-grl_cov_merged%>%filter(gharial_2017occ==1)%>%
-  ggplot(aes(x=fishingboats_2017))+
-  geom_histogram(binwidth = 1,color="red")+
-  labs(y="No. of detections",x="Fishing boats (2017)")+
-  theme_bw()
-
-##formatting variables to unmarked format---------
-##formatting occu data
-grl_occ1<-gharial%>%select(reach_ID,replicate_segt,gharial_2014occ)%>%pivot_wider(names_from = replicate_segt,values_from = gharial_2014occ)
-grl_occ2<-gharial%>%select(reach_ID,replicate_segt,gharial_2017occ)%>%pivot_wider(names_from = replicate_segt,values_from = gharial_2017occ)
-grl_occ_list<-list(grl_occ1,grl_occ2)
-grl_occ<-grl_occ_list%>%reduce(full_join,by="reach_ID")
-grl_occ_mat<-data.matrix(grl_occ[,2:11])
-
-cov_fishingactivity_mat_grl<-cov_fishingactivity_mat[,6:15]
-cov_fishingboats_mat_grl<-cov_fishingboats_mat[,6:15]
-
-cov_fishing_grl<-list(fishingact_grl=cov_fishingactivity_mat_grl,fishingboat_grl=cov_fishingboats_mat_grl)
-
-season_grl<-rep(c("Apr","Nov"),times=42)
-##Bundling into unmarked multi-season frame
-grl_occ_df <- unmarkedMultFrame(y=grl_occ_mat,siteCovs = covariate_occ5km[,2],
-                                yearlySiteCovs=list(total_fishingactivity=covariate_occ5km[,4:5],
-                                                    total_fishingboats=covariate_occ5km[,7:8],
-                                                    season=matrix(season_grl,nrow=42,byrow = T)),
-                                obsCovs=cov_fishing_grl,
-                                numPrimary=2) 
-summary(grl_occ_df) 
-
-##Models
-grl_occ_model1 <- colext(~1, ~1, ~1, ~1, grl_occ_df)
-summary(grl_occ_model1)
-backTransform(grl_occ_model1,type="psi")
-backTransform(grl_occ_model1,type="col")
-backTransform(grl_occ_model1,type="ext")
-backTransform(grl_occ_model1,type="det")
-
-grl_occ_model2 <- colext(~median_dist_km, ~1, ~1, ~1, grl_occ_df)
-summary(grl_occ_model2)
-
-grl_occ_model3 <- colext(~1, ~total_fishingactivity, ~total_fishingactivity, ~1, grl_occ_df)
-summary(grl_occ_model3)
-
-grl_occ_model4 <- colext(~1, ~total_fishingboats, ~total_fishingboats, ~1, grl_occ_df)
-summary(grl_occ_model4) 
-
-grl_occ_model5 <- colext(~1, ~1, ~1, ~fishingact_grl, grl_occ_df)
-summary(grl_occ_model5)
-
-grl_occ_model6 <- colext(~1, ~1, ~1, ~fishingboat_grl, grl_occ_df)
-summary(grl_occ_model6) 
-
-grl_occ_models <- fitList('psi(.)gam(.)eps(.)p(.)' = grl_occ_model1,
-                          'psi(dist_km)gam(.)eps(.)p(.)' = grl_occ_model2,
-                          'psi(.)gam(fishingact)eps(fishingact)p(.)' = grl_occ_model3, 
-                          'psi(.)gam(fishingboat)eps(fishingboat)p(.)' = grl_occ_model4,
-                          'psi(.)gam(.)eps(.)p(fishingact)' = grl_occ_model5,
-                          'psi(.)gam(.)eps(.)p(fishingboat)' = grl_occ_model6)
-                          
-
-grl_occ_models_AIC<-modSel(grl_occ_models)
-grl_occ_models_AICtable<-grl_occ_models_AIC@Full[c("model","negLogLike","nPars","n","AIC","delta","AICwt","cumltvWt")]
-write.table(grl_occ_models_AICtable, file = "GRL_occ_AIC_23.08.22.txt", sep = "\t",
-            row.names = F)
-
-grl_occ_top1<-summary(grl_occ_model4)
-grl_occ_top1_estimate<-rbind(grl_occ_top1[["psi"]],grl_occ_top1[["col"]],
-                             grl_occ_top1[["ext"]],grl_occ_top1[["det"]])
-rownames(grl_occ_top1_estimate)<-c("psi-intercept","col-intercept","col-fishingboat",
-                                   "ext-intercept","ext-fishingboat","det-intercept")
-write.table(grl_occ_top1_estimate, file = "GRL_occ_estimate_top1.txt", sep = "\t",
-            row.names = T)
-
-grl_occ_top2<-summary(grl_occ_model3)
-grl_occ_top2_estimate<-rbind(grl_occ_top2[["psi"]],grl_occ_top2[["col"]],
-                             grl_occ_top2[["ext"]],grl_occ_top2[["det"]])
-rownames(grl_occ_top2_estimate)<-c("psi-intercept","col-intercept","col-fishingact",
-                                   "ext-intercept","ext-fishingact","det-intercept")
-write.table(grl_occ_top2_estimate, file = "GRL_occ_estimate_top2.txt", sep = "\t",
-            row.names = T)
-
-grl_occ_top3<-summary(grl_occ_model1)
-grl_occ_top3_estimate<-rbind(grl_occ_top3[["psi"]],grl_occ_top3[["col"]],
-                             grl_occ_top3[["ext"]],grl_occ_top3[["det"]])
-rownames(grl_occ_top3_estimate)<-c("psi-intercept","col-intercept",
-                                   "ext-intercept","det-intercept")
-write.table(grl_occ_top3_estimate, file = "GRL_occ_estimate_top3.txt", sep = "\t",
-            row.names = T)
-
-############----------------------------------------------------------
-##Occupancy models for grd at 1km scale
+##Occupancy of grds at 1km scale
 ##Adding covariate at 1km scale to account for spatial autocorrelation
-magic_for(print, silent = TRUE)
-##adding for 
+spatial_autocov_grd2010 <- vector("integer",nrow(grd))
 for(i in 1:nrow(grd)){
   if(i==1){
-    spatial_autocov_grd2010<-ifelse(grd$grd2010_occ[i+1]==0,0,1)
+    spatial_autocov_grd2010[i] <- ifelse(grd$grd2010_occ[i+1]==0,0,1)
   } else if(i==nrow(grd)){
-    spatial_autocov_grd2010<-ifelse(grd$grd2010_occ[i-1]==0,0,1)
+    spatial_autocov_grd2010[i] <- ifelse(grd$grd2010_occ[i-1]==0,0,1)
   } else
-    spatial_autocov_grd2010<-ifelse(grd$grd2010_occ[i-1]==0 & grd$grd2010_occ[i+1]==0,0,1)
+    spatial_autocov_grd2010[i] <- ifelse(grd$grd2010_occ[i-1]==0 & grd$grd2010_occ[i+1]==0,0,1)
   print(spatial_autocov_grd2010)
 }
+spatial_autocov_grd2010
 
-spatial_autocov_grd2010<-magic_result_as_dataframe()[,2] 
-
+spatial_autocov_grd2013 <- vector("integer",nrow(grd))
 for(i in 1:nrow(grd)){
   if(i==1){
-    spatial_autocov_grd2013<-ifelse(grd$grd2013_occ[i+1]==0,0,1)
+    spatial_autocov_grd2013[i] <- ifelse(grd$grd2013_occ[i+1]==0,0,1)
   } else if(i==nrow(grd)){
-    spatial_autocov_grd2013<-ifelse(grd$grd2013_occ[i-1]==0,0,1)
+    spatial_autocov_grd2013[i] <- ifelse(grd$grd2013_occ[i-1]==0,0,1)
   } else
-    spatial_autocov_grd2013<-ifelse(grd$grd2013_occ[i-1]==0 & grd$grd2013_occ[i+1]==0,0,1)
+    spatial_autocov_grd2013[i] <- ifelse(grd$grd2013_occ[i-1]==0 & grd$grd2013_occ[i+1]==0,0,1)
   print(spatial_autocov_grd2013)
 }
+spatial_autocov_grd2013
 
-spatial_autocov_grd2013<-magic_result_as_dataframe()[,2]
-
+spatial_autocov_grd2017 <- vector("integer",nrow(grd))
 for(i in 1:nrow(grd)){
   if(i==1){
-    spatial_autocov_grd2017<-ifelse(grd$grd2017_occ[i+1]==0,0,1)
+    spatial_autocov_grd2017[i] <- ifelse(grd$grd2017_occ[i+1]==0,0,1)
   } else if(i==nrow(grd)){
-    spatial_autocov_grd2017<-ifelse(grd$grd2017_occ[i-1]==0,0,1)
+    spatial_autocov_grd2017[i] <- ifelse(grd$grd2017_occ[i-1]==0,0,1)
   } else
-    spatial_autocov_grd2017<-ifelse(grd$grd2017_occ[i-1]==0 & grd$grd2017_occ[i+1]==0,0,1)
+    spatial_autocov_grd2017[i] <- ifelse(grd$grd2017_occ[i-1]==0 & grd$grd2017_occ[i+1]==0,0,1)
   print(spatial_autocov_grd2017)
 }
+spatial_autocov_grd2017
 
-spatial_autocov_grd2017<-magic_result_as_dataframe()[,2]
-
-grd<-cbind(grd,spatial_autocov_grd2010,spatial_autocov_grd2013,spatial_autocov_grd2017)
-grd$dist_km.s<-scale(grd$dist_km,center=T,scale = T)
-grd_svocc_merged<-merge(grd,covariate,by=c("reach_ID","replicate_segt","dist_km"))
+grd <- cbind(grd,spatial_autocov_grd2010,spatial_autocov_grd2013,spatial_autocov_grd2017)
+grd$dist_km_log <- log(grd$dist_km)
+grd_svocc_merged <- merge(grd,covariate,by=c("reach_ID","replicate_segt","dist_km"))
 str(grd_svocc_merged)
 
 ##Building single-visit models using the 'detect' package
@@ -551,7 +434,275 @@ write.table(grd2017_svocc_top2_estimate, file = "grd2017_svocc_top2_estimate.txt
             row.names = T)
 
 ############----------------------------------------------------------
-##Occupancy models for gharials at 1km scale
+##Abundance of grds at 1km scale
+table(grd$grd2010_count) ##117 sites with zero count
+table(grd$grd2013_count) ##120 sites with zero count
+table(grd$grd2017_count) ##138 sites with zero count
+
+#For 2010
+plot(grd_svocc_merged$grd2010_count~grd_svocc_merged$dist_km_log)
+plot(grd_svocc_merged$grd2010_count~grd_svocc_merged$fishingactivity_2010)
+plot(grd_svocc_merged$grd2010_count~grd_svocc_merged$fishingboats_2010)
+
+svabu_grd2010_m1 <- svabu(grd2010_count ~ dist_km_log | 1, grd_svocc_merged)
+summary(svabu_grd2010_m1)
+
+svabu_grd2010_m2 <- svabu(grd2010_count ~ dist_km_log | fishingactivity_2010, grd_svocc_merged)
+svabu_grd2010_m2_sum<-summary(svabu_grd2010_m2)
+
+svabu_grd2010_m3 <- svabu(grd2010_count ~ dist_km_log | fishingboats_2010, grd_svocc_merged)
+summary(svabu_grd2010_m3)
+
+svabu_grd2010_m4 <- svabu(grd2010_count ~ dist_km_log | spatial_autocov_grd2010, grd_svocc_merged)
+summary(svabu_grd2010_m4)
+
+svabu_grd2010_m5 <- svabu(grd2010_count ~ dist_km_log + fishingactivity_2010 | 1, grd_svocc_merged)
+summary(svabu_grd2010_m5)
+
+svabu_grd2010_m6 <- svabu(grd2010_count ~ dist_km_log + fishingboats_2010 | 1, grd_svocc_merged)
+summary(svabu_grd2010_m6)
+
+svabu_grd2010_m7 <- svabu(grd2010_count ~ dist_km_log + zif(dist_km_log) | 1, grd_svocc_merged)
+summary(svabu_grd2010_m7)
+
+svabu_grd2010_m8 <- svabu(grd2010_count ~ dist_km_log + zif(spatial_autocov_grd2010)| 1, grd_svocc_merged)
+summary(svabu_grd2010_m8)
+
+svabu_grd2010_m9 <- svabu(grd2010_count ~ dist_km_log + zif(fishingactivity_2010)| 1, grd_svocc_merged)
+summary(svabu_grd2010_m9)
+
+svabu_grd2010_m10 <- svabu(grd2010_count ~ dist_km_log + zif(fishingboats_2010)| 1, grd_svocc_merged)
+summary(svabu_grd2010_m10)
+
+##Exporting results for m2 - 2010
+grd2010_svabu_m2_estimate <- rbind(svabu_grd2010_m2_sum[["sta"]],
+                                   svabu_grd2010_m2_sum[["det"]],
+                                   svabu_grd2010_m2_sum[["zif"]])
+rownames(grd2010_svabu_m2_estimate) <- c("abu-intercept","abu-dist_km (log)",
+                                         "det-intercept","det-fishingactivity", "zif-intercept")
+write.table(grd2010_svabu_m2_estimate, file = "grd2010_svabu_estimate.txt", sep = "\t",
+            row.names = T)
+
+#For 2013
+plot(grd_svocc_merged$grd2013_count~grd_svocc_merged$dist_km_log)
+plot(grd_svocc_merged$grd2013_count~grd_svocc_merged$fishingactivity_2014)
+plot(grd_svocc_merged$grd2013_count~grd_svocc_merged$fishingboats_2014)
+
+svabu_grd2013_m1 <- svabu(grd2013_count ~ dist_km_log | 1, grd_svocc_merged)
+summary(svabu_grd2013_m1)
+
+svabu_grd2013_m2 <- svabu(grd2013_count ~ dist_km_log | fishingactivity_2014, grd_svocc_merged)
+svabu_grd2013_m2_sum <- summary(svabu_grd2013_m2)
+
+svabu_grd2013_m3 <- svabu(grd2013_count ~ dist_km_log | fishingboats_2014, grd_svocc_merged)
+summary(svabu_grd2013_m3)
+
+svabu_grd2013_m4 <- svabu(grd2013_count ~ dist_km_log | spatial_autocov_grd2013, grd_svocc_merged)
+summary(svabu_grd2013_m4)
+
+svabu_grd2013_m5 <- svabu(grd2013_count ~ dist_km_log + fishingactivity_2014 | 1, grd_svocc_merged)
+summary(svabu_grd2013_m5)
+
+svabu_grd2013_m6 <- svabu(grd2013_count ~ dist_km_log + fishingboats_2014 | 1, grd_svocc_merged)
+svabu_grd2013_m6_sum <- summary(svabu_grd2013_m6)
+
+svabu_grd2013_m7 <- svabu(grd2013_count ~ dist_km_log + zif(dist_km_log) | 1, grd_svocc_merged)
+summary(svabu_grd2013_m7)
+
+svabu_grd2013_m8 <- svabu(grd2013_count ~ dist_km_log + zif(spatial_autocov_grd2013)| 1, grd_svocc_merged)
+summary(svabu_grd2013_m8)
+
+svabu_grd2013_m9 <- svabu(grd2013_count ~ dist_km_log + zif(fishingactivity_2014)| 1, grd_svocc_merged)
+summary(svabu_grd2013_m9)
+
+svabu_grd2013_m10 <- svabu(grd2013_count ~ dist_km_log + zif(fishingboats_2014)| 1, grd_svocc_merged)
+summary(svabu_grd2013_m10)
+
+##Exporting results for m2 and m6 - 2013
+grd2013_svabu_m2_estimate <- rbind(svabu_grd2013_m2_sum[["sta"]],
+                                   svabu_grd2013_m2_sum[["det"]],
+                                   svabu_grd2013_m2_sum[["zif"]])
+rownames(grd2013_svabu_m2_estimate) <- c("abu-intercept","abu-dist_km (log)",
+                                         "det-intercept","det-fishingactivity", "zif-intercept")
+write.table(grd2013_svabu_m2_estimate, file = "grd2013_svabu_m2_estimate.txt", sep = "\t",
+            row.names = T)
+
+grd2013_svabu_m6_estimate <- rbind(svabu_grd2013_m6_sum[["sta"]],
+                                   svabu_grd2013_m6_sum[["det"]],
+                                   svabu_grd2013_m6_sum[["zif"]])
+rownames(grd2013_svabu_m6_estimate) <- c("abu-intercept","abu-dist_km (log)",
+                                         "abu-fishingboats", "det-intercept", "zif-intercept")
+write.table(grd2013_svabu_m6_estimate, file = "grd2013_svabu_m6_estimate.txt", sep = "\t",
+            row.names = T)
+
+#For 2017
+plot(grd_svocc_merged$grd2017_count~grd_svocc_merged$dist_km_log)
+plot(grd_svocc_merged$grd2017_count~grd_svocc_merged$fishingactivity_2017)
+plot(grd_svocc_merged$grd2017_count~grd_svocc_merged$fishingboats_2017)
+
+svabu_grd2017_m1 <- svabu(grd2017_count ~ dist_km_log | 1, grd_svocc_merged)
+summary(svabu_grd2017_m1)
+
+svabu_grd2017_m2 <- svabu(grd2017_count ~ dist_km_log | fishingactivity_2017, grd_svocc_merged)
+summary(svabu_grd2017_m2)
+
+svabu_grd2017_m3 <- svabu(grd2017_count ~ dist_km_log | fishingboats_2017, grd_svocc_merged)
+svabu_grd2017_m3_sum <- summary(svabu_grd2017_m3)
+
+svabu_grd2017_m4 <- svabu(grd2017_count ~ dist_km_log | spatial_autocov_grd2017, grd_svocc_merged)
+summary(svabu_grd2017_m4)
+
+svabu_grd2017_m5 <- svabu(grd2017_count ~ dist_km_log + fishingactivity_2017 | 1, grd_svocc_merged)
+summary(svabu_grd2017_m5)
+
+svabu_grd2017_m6 <- svabu(grd2017_count ~ dist_km_log + fishingboats_2017 | 1, grd_svocc_merged)
+svabu_grd2017_m6_sum <- summary(svabu_grd2017_m6)
+
+svabu_grd2017_m7 <- svabu(grd2017_count ~ dist_km_log + zif(dist_km_log) | 1, grd_svocc_merged)
+summary(svabu_grd2017_m7)
+
+svabu_grd2017_m8 <- svabu(grd2017_count ~ dist_km_log + zif(spatial_autocov_grd2017)| 1, grd_svocc_merged)
+summary(svabu_grd2017_m8)
+
+svabu_grd2017_m9 <- svabu(grd2017_count ~ dist_km_log + zif(fishingactivity_2017)| 1, grd_svocc_merged)
+summary(svabu_grd2017_m9)
+
+svabu_grd2017_m10 <- svabu(grd2017_count ~ dist_km_log + zif(fishingboats_2017)| 1, grd_svocc_merged)
+summary(svabu_grd2017_m10)
+
+##Exporting results for m3 and m6 - 2017
+grd2017_svabu_m3_estimate <- rbind(svabu_grd2017_m3_sum[["sta"]],
+                                   svabu_grd2017_m3_sum[["det"]],
+                                   svabu_grd2017_m3_sum[["zif"]])
+rownames(grd2017_svabu_m3_estimate) <- c("abu-intercept","abu-dist_km (log)",
+                                         "det-intercept","det-fishingboats", "zif-intercept")
+write.table(grd2017_svabu_m3_estimate, file = "grd2017_svabu_m3_estimate.txt", sep = "\t",
+            row.names = T)
+
+grd2017_svabu_m6_estimate <- rbind(svabu_grd2017_m6_sum[["sta"]],
+                                   svabu_grd2017_m6_sum[["det"]],
+                                   svabu_grd2017_m6_sum[["zif"]])
+rownames(grd2017_svabu_m6_estimate) <- c("abu-intercept","abu-dist_km (log)",
+                                         "abu-fishingboats", "det-intercept", "zif-intercept")
+write.table(grd2017_svabu_m6_estimate, file = "grd2017_svabu_m6_estimate.txt", sep = "\t",
+            row.names = T)
+############----------------------------------------------------------
+##Occupancy of gharials at 5km scale
+##Exploratory analysis
+grl_cov_merged<-merge(gharial,covariate,by=c("reach_ID","replicate_segt"))
+##distance along river
+dist_occ_grl1<-ggplot(data=grl_cov_merged,aes(x=dist_km.x,y=gharial_2014occ))+
+  geom_point()+theme_bw()
+dist_occ_grl2<-ggplot(data=grl_cov_merged,aes(x=dist_km.x,y=gharial_2017occ))+
+  geom_point()+theme_bw()
+
+##fishing activity
+fishingactivity_occ_grl1<-grl_cov_merged%>%filter(gharial_2014occ==1)%>%
+  ggplot(aes(x=fishingactivity_2014))+
+  geom_bar()+labs(y="No. of detections",x="Fishing acitivity (2014)")+theme_bw()
+
+fishingactivity_occ_grl2<-grl_cov_merged%>%filter(gharial_2017occ==1)%>%
+  ggplot(aes(x=fishingactivity_2017))+
+  geom_bar()+labs(y="No. of detections",x="Fishing acitivity (2017)")+theme_bw()
+
+##fishing boats
+fishingboats_occ_grl1<-grl_cov_merged%>%filter(gharial_2014occ==1)%>%
+  ggplot(aes(x=fishingboats_2014))+
+  geom_histogram(binwidth = 1,color="red")+
+  labs(y="No. of detections",x="Fishing boats (2014)")+
+  theme_bw()
+
+fishingboats_occ_grl2<-grl_cov_merged%>%filter(gharial_2017occ==1)%>%
+  ggplot(aes(x=fishingboats_2017))+
+  geom_histogram(binwidth = 1,color="red")+
+  labs(y="No. of detections",x="Fishing boats (2017)")+
+  theme_bw()
+
+##formatting variables to unmarked format---------
+##formatting occu data
+grl_occ1<-gharial%>%select(reach_ID,replicate_segt,gharial_2014occ)%>%pivot_wider(names_from = replicate_segt,values_from = gharial_2014occ)
+grl_occ2<-gharial%>%select(reach_ID,replicate_segt,gharial_2017occ)%>%pivot_wider(names_from = replicate_segt,values_from = gharial_2017occ)
+grl_occ_list<-list(grl_occ1,grl_occ2)
+grl_occ<-grl_occ_list%>%reduce(full_join,by="reach_ID")
+grl_occ_mat<-data.matrix(grl_occ[,2:11])
+
+cov_fishingactivity_mat_grl<-cov_fishingactivity_mat[,6:15]
+cov_fishingboats_mat_grl<-cov_fishingboats_mat[,6:15]
+
+cov_fishing_grl<-list(fishingact_grl=cov_fishingactivity_mat_grl,fishingboat_grl=cov_fishingboats_mat_grl)
+
+season_grl<-rep(c("Apr","Nov"),times=42)
+##Bundling into unmarked multi-season frame
+grl_occ_df <- unmarkedMultFrame(y=grl_occ_mat,siteCovs = covariate_occ5km[,2],
+                                yearlySiteCovs=list(total_fishingactivity=covariate_occ5km[,4:5],
+                                                    total_fishingboats=covariate_occ5km[,7:8],
+                                                    season=matrix(season_grl,nrow=42,byrow = T)),
+                                obsCovs=cov_fishing_grl,
+                                numPrimary=2) 
+summary(grl_occ_df) 
+
+##Models
+grl_occ_model1 <- colext(~1, ~1, ~1, ~1, grl_occ_df)
+summary(grl_occ_model1)
+backTransform(grl_occ_model1,type="psi")
+backTransform(grl_occ_model1,type="col")
+backTransform(grl_occ_model1,type="ext")
+backTransform(grl_occ_model1,type="det")
+
+grl_occ_model2 <- colext(~median_dist_km, ~1, ~1, ~1, grl_occ_df)
+summary(grl_occ_model2)
+
+grl_occ_model3 <- colext(~1, ~total_fishingactivity, ~total_fishingactivity, ~1, grl_occ_df)
+summary(grl_occ_model3)
+
+grl_occ_model4 <- colext(~1, ~total_fishingboats, ~total_fishingboats, ~1, grl_occ_df)
+summary(grl_occ_model4) 
+
+grl_occ_model5 <- colext(~1, ~1, ~1, ~fishingact_grl, grl_occ_df)
+summary(grl_occ_model5)
+
+grl_occ_model6 <- colext(~1, ~1, ~1, ~fishingboat_grl, grl_occ_df)
+summary(grl_occ_model6) 
+
+grl_occ_models <- fitList('psi(.)gam(.)eps(.)p(.)' = grl_occ_model1,
+                          'psi(dist_km)gam(.)eps(.)p(.)' = grl_occ_model2,
+                          'psi(.)gam(fishingact)eps(fishingact)p(.)' = grl_occ_model3, 
+                          'psi(.)gam(fishingboat)eps(fishingboat)p(.)' = grl_occ_model4,
+                          'psi(.)gam(.)eps(.)p(fishingact)' = grl_occ_model5,
+                          'psi(.)gam(.)eps(.)p(fishingboat)' = grl_occ_model6)
+
+
+grl_occ_models_AIC<-modSel(grl_occ_models)
+grl_occ_models_AICtable<-grl_occ_models_AIC@Full[c("model","negLogLike","nPars","n","AIC","delta","AICwt","cumltvWt")]
+write.table(grl_occ_models_AICtable, file = "GRL_occ_AIC_23.08.22.txt", sep = "\t",
+            row.names = F)
+
+grl_occ_top1<-summary(grl_occ_model4)
+grl_occ_top1_estimate<-rbind(grl_occ_top1[["psi"]],grl_occ_top1[["col"]],
+                             grl_occ_top1[["ext"]],grl_occ_top1[["det"]])
+rownames(grl_occ_top1_estimate)<-c("psi-intercept","col-intercept","col-fishingboat",
+                                   "ext-intercept","ext-fishingboat","det-intercept")
+write.table(grl_occ_top1_estimate, file = "GRL_occ_estimate_top1.txt", sep = "\t",
+            row.names = T)
+
+grl_occ_top2<-summary(grl_occ_model3)
+grl_occ_top2_estimate<-rbind(grl_occ_top2[["psi"]],grl_occ_top2[["col"]],
+                             grl_occ_top2[["ext"]],grl_occ_top2[["det"]])
+rownames(grl_occ_top2_estimate)<-c("psi-intercept","col-intercept","col-fishingact",
+                                   "ext-intercept","ext-fishingact","det-intercept")
+write.table(grl_occ_top2_estimate, file = "GRL_occ_estimate_top2.txt", sep = "\t",
+            row.names = T)
+
+grl_occ_top3<-summary(grl_occ_model1)
+grl_occ_top3_estimate<-rbind(grl_occ_top3[["psi"]],grl_occ_top3[["col"]],
+                             grl_occ_top3[["ext"]],grl_occ_top3[["det"]])
+rownames(grl_occ_top3_estimate)<-c("psi-intercept","col-intercept",
+                                   "ext-intercept","det-intercept")
+write.table(grl_occ_top3_estimate, file = "GRL_occ_estimate_top3.txt", sep = "\t",
+            row.names = T)
+
+############----------------------------------------------------------
+##Occupancy of gharials at 1km scale
 spatial_autocov_gharial2014 <- vector("integer",nrow(gharial))
 for(i in 1:nrow(gharial)){
   if(i==1){
@@ -714,3 +865,120 @@ gharial2017_svocc_m4_estimate <- rbind(svocc_gharial2017_m4_sum[["sta"]],svocc_g
 rownames(gharial2017_svocc_m4_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","fishingboat")
 write.table(gharial2017_svocc_m4_estimate, file = "gharial2017_svocc_m4_estimate.txt", sep = "\t",
             row.names = T)
+############----------------------------------------------------------
+##Abundance of gharials at 1km scale
+table(gharial$gharial_count_2014) ##184 sites with zero count
+table(gharial$gharial_count_2017) ##179 sites with zero count
+
+#For 2014
+svabu_gharial2014_m1 <- svabu(gharial_count_2014 ~ dist_km_log | 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m1)
+
+svabu_gharial2014_m2 <- svabu(gharial_count_2014 ~ dist_km_log | spatial_autocov_gharial2014, gharial_svocc_merged)
+summary(svabu_gharial2014_m2)
+
+svabu_gharial2014_m3 <- svabu(gharial_count_2014 ~ dist_km_log | fishingactivity_2014, gharial_svocc_merged)
+svabu_gharial2014_m3_sum<-summary(svabu_gharial2014_m3)
+
+svabu_gharial2014_m4 <- svabu(gharial_count_2014 ~ dist_km_log | fishingboats_2014, gharial_svocc_merged)
+summary(svabu_gharial2014_m4)
+
+svabu_gharial2014_m5 <- svabu(gharial_count_2014 ~ dist_km_log + fishingactivity_2014| 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m5)
+
+svabu_gharial2014_m6 <- svabu(gharial_count_2014 ~ dist_km_log + fishingboats_2014| 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m6)
+
+svabu_gharial2014_m7 <- svabu(gharial_count_2014 ~ dist_km_log + zif(spatial_autocov_gharial2014)| 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m7)
+
+svabu_gharial2014_m8 <- svabu(gharial_count_2014 ~ dist_km_log + zif(fishingactivity_2014)| 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m8)
+
+svabu_gharial2014_m9 <- svabu(gharial_count_2014 ~ dist_km_log + zif(fishingboats_2014)| 1, gharial_svocc_merged)
+summary(svabu_gharial2014_m9)
+
+svabu_gharial2014_m10 <- svabu(gharial_count_2014 ~ dist_km_log + zif(dist_km_log)| 1, gharial_svocc_merged)
+svabu_gharial2014_m10_sum<-summary(svabu_gharial2014_m10)
+
+##Exporting results for m3 and m10 - 2014
+gharial2014_svabu_m3_estimate <- rbind(svabu_gharial2014_m3_sum[["sta"]],
+                                       svabu_gharial2014_m3_sum[["det"]],
+                                       svabu_gharial2014_m3_sum[["zif"]])
+rownames(gharial2014_svabu_m3_estimate) <- c("abu-intercept","abu-dist_km (log)","det-intercept",
+                                             "det-fishingactivity","zif-intercept")
+write.table(gharial2014_svabu_m3_estimate, file = "gharial2014_svabu_top_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2014_svabu_m10_estimate <- rbind(svabu_gharial2014_m10_sum[["sta"]],
+                                        svabu_gharial2014_m10_sum[["det"]],
+                                        svabu_gharial2014_m10_sum[["zif"]])
+rownames(gharial2014_svabu_m10_estimate) <- c("abu-intercept","abu-dist_km (log)","det-intercept",
+                                              "zif-intercept","zif-dist_km (log)")
+write.table(gharial2014_svabu_m10_estimate, file = "gharial2014_svabu_zif_estimate.txt", sep = "\t",
+            row.names = T)
+
+#For 2017
+svabu_gharial2017_m1 <- svabu(gharial_count_2017 ~ dist_km_log | 1, gharial_svocc_merged)
+summary(svabu_gharial2017_m1)
+
+svabu_gharial2017_m2 <- svabu(gharial_count_2017 ~ dist_km_log | spatial_autocov_gharial2017, gharial_svocc_merged)
+summary(svabu_gharial2017_m2)
+
+svabu_gharial2017_m3 <- svabu(gharial_count_2017 ~ dist_km_log | fishingactivity_2017, gharial_svocc_merged)
+svabu_gharial2017_m3_sum <- summary(svabu_gharial2017_m3)
+
+svabu_gharial2017_m4 <- svabu(gharial_count_2017 ~ dist_km_log | fishingboats_2017, gharial_svocc_merged)
+svabu_gharial2017_m4_sum <- summary(svabu_gharial2017_m4)
+
+svabu_gharial2017_m5 <- svabu(gharial_count_2017 ~ dist_km_log + fishingactivity_2017| 1, gharial_svocc_merged)
+svabu_gharial2017_m5_sum <- summary(svabu_gharial2017_m5)
+
+svabu_gharial2017_m6 <- svabu(gharial_count_2017 ~ dist_km_log + fishingboats_2017| 1, gharial_svocc_merged)
+svabu_gharial2017_m6_sum <- summary(svabu_gharial2017_m6)
+
+svabu_gharial2017_m7 <- svabu(gharial_count_2017 ~ dist_km_log + zif(spatial_autocov_gharial2017)| 1, gharial_svocc_merged)
+summary(svabu_gharial2017_m7)
+
+svabu_gharial2017_m8 <- svabu(gharial_count_2017 ~ dist_km_log + zif(fishingactivity_2017)| 1, gharial_svocc_merged)
+summary(svabu_gharial2017_m8)
+
+svabu_gharial2017_m9 <- svabu(gharial_count_2017 ~ dist_km_log + zif(fishingboats_2017)| 1, gharial_svocc_merged)
+summary(svabu_gharial2017_m9)
+
+svabu_gharial2017_m10 <- svabu(gharial_count_2017 ~ dist_km_log + zif(dist_km_log)| 1, gharial_svocc_merged)
+summary(svabu_gharial2017_m10)
+
+##Exporting results for m3, m4, m5 and m6 - 2017
+gharial2017_svabu_m4_estimate <- rbind(svabu_gharial2017_m4_sum[["sta"]],
+                                       svabu_gharial2017_m4_sum[["det"]],
+                                       svabu_gharial2017_m4_sum[["zif"]])
+rownames(gharial2017_svabu_m4_estimate) <- c("abu-intercept","abu-dist_km (log)","det-intercept",
+                                             "det-fishingboat","zif-intercept")
+write.table(gharial2017_svabu_m4_estimate, file = "gharial2017_svabu_top_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svabu_m3_estimate <- rbind(svabu_gharial2017_m3_sum[["sta"]],
+                                       svabu_gharial2017_m3_sum[["det"]],
+                                       svabu_gharial2017_m3_sum[["zif"]])
+rownames(gharial2017_svabu_m3_estimate) <- c("abu-intercept","abu-dist_km (log)","det-intercept",
+                                             "det-fishingactivity","zif-intercept")
+write.table(gharial2017_svabu_m3_estimate, file = "gharial2017_svabu_top2_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svabu_m5_estimate <- rbind(svabu_gharial2017_m5_sum[["sta"]],
+                                       svabu_gharial2017_m5_sum[["det"]],
+                                       svabu_gharial2017_m5_sum[["zif"]])
+rownames(gharial2017_svabu_m5_estimate) <- c("abu-intercept","abu-dist_km (log)","abu-fishingactivity",
+                                             "det-intercept","zif-intercept")
+write.table(gharial2017_svabu_m5_estimate, file = "gharial2017_svabu_top3_estimate.txt", sep = "\t",
+            row.names = T)
+
+gharial2017_svabu_m6_estimate <- rbind(svabu_gharial2017_m6_sum[["sta"]],
+                                       svabu_gharial2017_m6_sum[["det"]],
+                                       svabu_gharial2017_m6_sum[["zif"]])
+rownames(gharial2017_svabu_m6_estimate) <- c("abu-intercept","abu-dist_km (log)","abu-fishingboat",
+                                             "det-intercept","zif-intercept")
+write.table(gharial2017_svabu_m6_estimate, file = "gharial2017_svabu_top4_estimate.txt", sep = "\t",
+            row.names = T)
+
