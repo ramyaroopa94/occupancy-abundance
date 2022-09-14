@@ -62,7 +62,7 @@ fishingboats_occ3<-grd_cov_merged%>%filter(grd2017_occ==1)%>%
   theme_bw()
 
 ##formatting variables to unmarked format---------
-##creating new dataset for modelling occupancy at 5km segment scale
+##creating new dataset for modelling occupancy and abundance at 5km segment scale
 covariate_occ5km<-covariate%>%group_by(reach_ID)%>%
   summarise(
     median_dist_km=median(dist_km),
@@ -196,6 +196,167 @@ rownames(grd_occ_top2_estimate)<-c("psi-intercept","col-intercept",
                                    "ext-intercept","det-intercept")
 write.table(grd_occ_top2_estimate, file = "grd_occ_estimate_top2.txt", sep = "\t",
             row.names = T)
+
+############----------------------------------------------------------
+##Abundance of grds at 5km scale
+grd_count5km <- grd%>%group_by(reach_ID)%>%
+  summarise(
+    total_count_2010=sum(grd2010_count),
+    total_count_2013=sum(grd2013_count),
+    total_count_2017=sum(grd2017_count))
+
+grd_count_mat <- data.matrix(grd_count5km[,2:4])  
+
+grd_count_df <- unmarkedFramePCO(y=grd_count_mat,siteCovs = covariate_occ5km[,2],
+                                 yearlySiteCovs=list(total_fishingactivity=covariate_occ5km[,3:5],
+                                                     total_fishingboats=covariate_occ5km[,6:8],
+                                                     season=covariate_occ5km[,9:11]
+                                 ), 
+                                 obsCovs=list(total_fishingactivity=covariate_occ5km[,3:5],
+                                              total_fishingboats=covariate_occ5km[,6:8],
+                                              season=covariate_occ5km[,9:11]
+                                 ),
+                                 numPrimary=3) 
+summary(grd_count_df) 
+grd_count_df@yearlySiteCovs[["season"]]<-relevel(grd_count_df@yearlySiteCovs[["season"]], ref = "Jan")  
+grd_count_df@obsCovs[["season"]]<-relevel(grd_count_df@obsCovs[["season"]], ref = "Jan")  
+
+##Following guidelines from AHM book Vol.2
+##Using dynamics="trend"
+m1 <- pcountOpen(lam = ~1, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 control = list(trace=TRUE))
+summary(m1)
+m2_inits <- c(coef(m1)[1],0,coef(m1)[2],coef(m1)[3])
+
+m2 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m2_inits,
+                 control = list(trace=TRUE))
+summary(m2)
+coef(m2)
+m3_inits <- c(coef(m2)[1],coef(m2)[2],coef(m2)[3],coef(m2)[4],0)
+
+m3 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingactivity, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m3_inits,
+                 control = list(trace=TRUE))
+summary(m3)
+
+m4 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingboats, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m3_inits,
+                 control = list(trace=TRUE))
+summary(m4)
+m5_inits <- c(coef(m2)[1:3],0,coef(m2)[4])
+
+m5 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~total_fishingactivity, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m5_inits,
+                 control = list(trace=TRUE))
+summary(m5)
+
+m6 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~total_fishingboats, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m5_inits,
+                 control = list(trace=TRUE))
+summary(m6)
+
+m7 <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~season, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "trend",
+                 starts = m5_inits,
+                 control = list(trace=TRUE))
+summary(m7)
+
+##Using dynamics="notrend"
+m1_notrend <- pcountOpen(lam = ~1, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "notrend",
+                 starts = c(3,0,-1), ##from trend model
+                 control = list(trace=TRUE))
+summary(m1_notrend)
+m2_inits_notrend <- c(coef(m1_notrend)[1],0.01,coef(m1_notrend)[2],coef(m1_notrend)[3])
+
+m2_notrend <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = grd_count_df, K = 150,
+                 dynamics = "notrend",
+                 starts = m2_inits_notrend,
+                 control = list(trace=TRUE))
+summary(m2_notrend)
+m3_inits_notrend <- c(coef(m2_notrend)[1:4],0)
+
+m3_notrend <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingactivity, data = grd_count_df, K = 150,
+                 dynamics = "notrend",
+                 starts = m3_inits_notrend,
+                 control = list(trace=TRUE))
+summary(m3_notrend)
+m4_inits_notrend <- c(coef(m2_notrend)[1:4],0)
+
+m4_notrend <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingboats, data = grd_count_df, K = 150,
+                 dynamics = "notrend",
+                 starts = m4_inits_notrend,
+                 control = list(trace=TRUE))
+summary(m4_notrend)
+m5_inits_notrend <- c(coef(m2_notrend)[1:3],0,coef(m2_notrend)[4])
+
+##Didnt complete running models with covs on omega (on 12.09.22)
+
+##Constructing AIC list for both sets of dynamics
+grd_count_models <- fitList('trend-lam(.)gam(.)p(.)' = m1, 
+                            'trend-lam(dist_km)gam(.)p(.)' = m2, 
+                            'trend-lam(dist_km)gam(.)p(fishingact)' = m3, 
+                            'trend-lam(dist_km)gam(.)p(fishingboat)' = m4, 
+                            'trend-lam(dist_km)gam(fishingact)p(.)' = m5, 
+                            'trend-lam(dist_km)gam(fishingboat)p(.)' = m6,
+                            'trend-lam(dist_km)gam(season)p(.)' = m7, 
+                            'notrend-lam(.)omega(.)p(.)' = m1_notrend, 
+                            'notrend-lam(dist_km)omega(.)p(.)' = m2_notrend, 
+                            'notrend-lam(dist_km)omega(.)p(fishingact)' = m3_notrend) #excluding m4_notrend due to Nans
+
+grd_count_models_AIC <- modSel(grd_count_models)
+grd_count_models_AICtable <- grd_count_models_AIC@Full[c("model","negLogLike","nPars","n","AIC","delta","AICwt","cumltvWt")]
+write.table(grd_count_models_AICtable, file = "grd_count_AIC_12.09.22.txt", sep = "\t",
+            row.names = F)
+
+grd_count_top1 <- summary(m4)
+grd_count_top1_estimate <- rbind(grd_count_top1[["lambda"]],grd_count_top1[["gamma"]],
+                               grd_count_top1[["det"]])
+rownames(grd_count_top1_estimate) <- c("count-intercept","count-dist_km","gam-intercept",
+                                     "det-intercept","det-fishingboats")
+write.table(grd_count_top1_estimate, file = "grd_count_estimate_top.txt", sep = "\t",
+            row.names = T) 
+
 ############----------------------------------------------------------
 ##Occupancy of grds at 1km scale
 ##Adding covariate at 1km scale to account for spatial autocorrelation
@@ -586,6 +747,7 @@ rownames(grd2017_svabu_m6_estimate) <- c("abu-intercept","abu-dist_km (log)",
                                          "abu-fishingboats", "det-intercept", "zif-intercept")
 write.table(grd2017_svabu_m6_estimate, file = "grd2017_svabu_m6_estimate.txt", sep = "\t",
             row.names = T)
+
 ############----------------------------------------------------------
 ##Occupancy of gharials at 5km scale
 ##Exploratory analysis
@@ -701,6 +863,148 @@ rownames(grl_occ_top3_estimate)<-c("psi-intercept","col-intercept",
 write.table(grl_occ_top3_estimate, file = "GRL_occ_estimate_top3.txt", sep = "\t",
             row.names = T)
 
+############----------------------------------------------------------
+##Abundance of gharials at 5km scale
+gharial_count5km <- gharial%>%group_by(reach_ID)%>%
+  summarise(
+    total_count_2014=sum(gharial_count_2014),
+    total_count_2017=sum(gharial_count_2017))
+
+gharial_count_mat <- data.matrix(gharial_count5km[,2:3])  
+
+gharial_count_df <- unmarkedFramePCO(y=gharial_count_mat,siteCovs = covariate_occ5km[,2],
+                                 yearlySiteCovs=list(total_fishingactivity=covariate_occ5km[,4:5],
+                                                     total_fishingboats=covariate_occ5km[,7:8]
+                                 ), 
+                                 obsCovs=list(total_fishingactivity=covariate_occ5km[,4:5],
+                                              total_fishingboats=covariate_occ5km[,7:8]
+                                 ),
+                                 numPrimary=2) 
+summary(gharial_count_df) 
+
+##Using dynamics="trend"
+m1_grl <- pcountOpen(lam = ~1, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = gharial_count_df, K = 110, #K set to 100+max(y)
+                 dynamics = "trend",
+                 control = list(trace=TRUE))
+summary(m1_grl)
+m2_inits_grl <- c(coef(m1_grl)[1],0,coef(m1_grl)[2],coef(m1_grl)[3])
+
+m2_grl <- pcountOpen(lam = ~median_dist_km, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~1, data = gharial_count_df, K = 110,
+                 dynamics = "trend",
+                 starts = m2_inits_grl,
+                 control = list(trace=TRUE))
+summary(m2_grl)
+coef(m2_grl)
+m3_inits_grl <- c(coef(m2_grl)[1],coef(m2_grl)[3],coef(m2_grl)[4],0)
+
+m3_grl <- pcountOpen(lam = ~1, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingactivity, data = gharial_count_df, K = 110,
+                 dynamics = "trend",
+                 starts = m3_inits_grl,
+                 control = list(trace=TRUE))
+summary(m3_grl)
+
+m4_grl <- pcountOpen(lam = ~1, 
+                 gam = ~1, 
+                 omega = ~1,
+                 p = ~total_fishingboats, data = gharial_count_df, K = 110,
+                 dynamics = "trend",
+                 starts = m3_inits_grl,
+                 control = list(trace=TRUE))
+summary(m4_grl)
+m5_inits_grl <- c(coef(m3_grl)[1:2],0,coef(m3_grl)[3:4])
+
+m5_grl <- pcountOpen(lam = ~1, 
+                     gam = ~total_fishingactivity, 
+                     omega = ~1,
+                     p = ~total_fishingactivity, data = gharial_count_df, K = 110,
+                     dynamics = "trend",
+                     starts = m5_inits_grl,
+                     control = list(trace=TRUE))
+summary(m5_grl)
+
+m6_grl <- pcountOpen(lam = ~1, 
+                     gam = ~total_fishingboats, 
+                     omega = ~1,
+                     p = ~total_fishingactivity, data = gharial_count_df, K = 110,
+                     dynamics = "trend",
+                     starts = m5_inits_grl,
+                     control = list(trace=TRUE))
+summary(m6_grl)
+
+##Using dynamics="notrend"
+m1_notrend_grl <-pcountOpen(lam = ~1, 
+                            gam = ~1, 
+                            omega = ~1,
+                            p = ~1, data = gharial_count_df, K = 110,
+                            dynamics = "notrend",
+                            starts = c(0.5,0.2,0.1), ##from trend model
+                            control = list(trace=TRUE))
+summary(m1_notrend_grl)
+m2_notrend_inits_grl <- c(coef(m1_notrend_grl)[1],0,
+                          coef(m1_notrend_grl)[2],
+                          coef(m1_notrend_grl)[3])
+
+m2_notrend_grl <-pcountOpen(lam = ~median_dist_km, 
+                            gam = ~1, 
+                            omega = ~1,
+                            p = ~1, data = gharial_count_df, K = 110,
+                            dynamics = "notrend",
+                            starts = m2_notrend_inits_grl,
+                            control = list(trace=TRUE))
+summary(m2_notrend_grl)
+m3_notrend_inits_grl <- c(coef(m2_notrend_grl)[1:4],0)
+
+m3_notrend_grl <-pcountOpen(lam = ~median_dist_km, 
+                            gam = ~1, 
+                            omega = ~1,
+                            p = ~total_fishingactivity, data = gharial_count_df, K = 110,
+                            dynamics = "notrend",
+                            starts = m3_notrend_inits_grl,
+                            control = list(trace=TRUE))
+summary(m3_notrend_grl)
+
+m4_notrend_grl <-pcountOpen(lam = ~median_dist_km, 
+                            gam = ~1, 
+                            omega = ~1,
+                            p = ~total_fishingboats, data = gharial_count_df, K = 110,
+                            dynamics = "notrend",
+                            starts = m3_notrend_inits_grl,
+                            control = list(trace=TRUE))
+summary(m4_notrend_grl)
+
+##Constructing AIC list for both sets of dynamics
+gharial_count_models <- fitList('trend-lam(.)gam(.)p(.)' = m1_grl, 
+                            'trend-lam(dist_km)gam(.)p(.)' = m2_grl, 
+                            'trend-lam(.)gam(.)p(fishingact)' = m3_grl, 
+                            'trend-lam(.)gam(.)p(fishingboat)' = m4_grl, 
+                            'trend-lam(.)gam(fishingact)p(fishingact)' = m5_grl, 
+                            'trend-lam(.)gam(fishingboat)p(fishingact)' = m6_grl,
+                            'notrend-lam(.)omega(.)p(.)' = m1_notrend_grl, 
+                            'notrend-lam(dist_km)omega(.)p(.)' = m2_notrend_grl, 
+                            'notrend-lam(dist_km)omega(.)p(fishingact)' = m3_notrend_grl,
+                            'notrend-lam(dist_km)omega(.)p(fishingboat)' = m4_notrend_grl) #excluding m4_notrend due to Nans
+
+gharial_count_models_AIC <- modSel(gharial_count_models)
+gharial_count_models_AICtable <- gharial_count_models_AIC@Full[c("model","negLogLike","nPars","n","AIC","delta","AICwt","cumltvWt")]
+write.table(gharial_count_models_AICtable, file = "gharial_count_AIC_12.09.22.txt", sep = "\t",
+            row.names = F)
+
+gharial_count_top1 <- summary(m3_grl)
+gharial_count_top1_estimate <- rbind(gharial_count_top1[["lambda"]],gharial_count_top1[["gamma"]],
+                                     gharial_count_top1[["det"]])
+rownames(gharial_count_top1_estimate) <- c("count-intercept","gam-intercept",
+                                       "det-intercept","det-fishingactivity")
+write.table(gharial_count_top1_estimate, file = "gharial_count_estimate_top.txt", sep = "\t",
+            row.names = T) 
 ############----------------------------------------------------------
 ##Occupancy of gharials at 1km scale
 spatial_autocov_gharial2014 <- vector("integer",nrow(gharial))
@@ -865,6 +1169,7 @@ gharial2017_svocc_m4_estimate <- rbind(svocc_gharial2017_m4_sum[["sta"]],svocc_g
 rownames(gharial2017_svocc_m4_estimate) <- c("psi-intercept","dist_km (log)","det-intercept","fishingboat")
 write.table(gharial2017_svocc_m4_estimate, file = "gharial2017_svocc_m4_estimate.txt", sep = "\t",
             row.names = T)
+
 ############----------------------------------------------------------
 ##Abundance of gharials at 1km scale
 table(gharial$gharial_count_2014) ##184 sites with zero count
